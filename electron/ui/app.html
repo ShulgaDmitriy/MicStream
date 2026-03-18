@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MicStream</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html{height:100%;overflow:hidden;background:transparent;}
+body{height:100%;overflow:hidden;color:#fff;font-family:-apple-system,'Segoe UI',sans-serif;user-select:none;background:transparent;padding:1px;}
+.app-frame{position:fixed;inset:1px;background:#000;border:1px solid rgba(255,255,255,0.18);border-radius:12px;overflow:hidden;isolation:isolate;}
+
+/* Titlebar */
+.titlebar{
+  position:fixed;top:0;left:0;right:0;height:32px;
+  -webkit-app-region:drag;
+  display:flex;align-items:center;
+  padding:0 14px;
+  z-index:100;
+  background:rgba(0,0,0,0);
+}
+.tbar-logo{font-size:11px;font-weight:600;color:rgba(255,255,255,0.18);letter-spacing:2px;flex:1;}
+.tbar-btns{display:flex;gap:4px;-webkit-app-region:no-drag;}
+.tbtn{width:28px;height:20px;border:none;background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.25);border-radius:4px;cursor:pointer;font-size:11px;transition:all .15s;display:flex;align-items:center;justify-content:center;}
+.tbtn:hover{background:rgba(255,255,255,0.1);color:#fff;}
+.tbtn.close:hover{background:#ff3b3b;color:#fff;}
+
+/* Full screen canvas */
+.vis-screen{
+  position:fixed;
+  inset:0;
+  padding-top:32px;
+  cursor:pointer;
+}
+#waveCanvas{display:block;width:100%;height:100%;}
+
+/* Status overlay - top left */
+.status-pill{
+  position:fixed;
+  top:42px;left:14px;
+  display:flex;align-items:center;gap:8px;
+  z-index:10;
+  transition:opacity .3s;
+}
+.sp-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);flex-shrink:0;transition:all .3s;}
+.sp-dot.on{background:#fff;box-shadow:0 0 6px rgba(255,255,255,0.4);}
+.sp-dot.green{background:#00ff88;box-shadow:0 0 6px rgba(0,255,136,0.5);}
+.sp-txt{font-size:11px;color:rgba(255,255,255,0.3);font-family:monospace;}
+.sp-txt.on{color:rgba(255,255,255,0.7);}
+
+/* Gear */
+.gear{
+  position:fixed;bottom:20px;right:20px;
+  width:38px;height:38px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;opacity:0.18;transition:opacity .2s;
+  z-index:10;
+}
+.gear:hover{opacity:0.55;}
+
+
+
+/* Settings panel */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:50;display:none;align-items:flex-end;justify-content:center;}
+.overlay.show{display:flex;}
+.sheet{
+  width:100%;
+  background:#0d0d0d;border-radius:16px 16px 0 0;
+  padding:18px 22px 28px;
+  animation:sup .25s cubic-bezier(.34,1.1,.64,1);
+}
+@keyframes sup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.handle{width:32px;height:4px;background:rgba(255,255,255,.08);border-radius:2px;margin:0 auto 20px;}
+.s-title{font-size:10px;font-weight:600;color:rgba(255,255,255,.2);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+.s-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.s-row:last-of-type{border:none;}
+.s-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.1);flex-shrink:0;transition:all .3s;}
+.s-dot.on{background:#fff;box-shadow:0 0 8px rgba(255,255,255,.3);}
+.s-label{font-size:14px;font-weight:500;color:#fff;flex:1;}
+.s-val{font-size:11px;font-family:monospace;color:rgba(255,255,255,.3);}
+.s-time{text-align:center;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.s-time-val{font-size:22px;font-weight:700;font-family:monospace;color:#fff;line-height:1;margin-bottom:3px;}
+.s-time-key{font-size:9px;color:rgba(255,255,255,.2);letter-spacing:1.5px;}
+.device-select{width:100%;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#fff;font-size:12px;font-family:monospace;outline:none;cursor:pointer;margin-top:8px;}
+.device-select option{background:#111;}
+.vb-btn{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:8px 14px;border-radius:8px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.25);color:rgba(255,255,255,.7);font-size:12px;cursor:pointer;transition:all .2s;}
+.vb-btn:hover{background:rgba(255,59,59,0.2);}
+.vol-row{display:flex;align-items:center;gap:10px;margin-top:8px;}
+.slider{-webkit-appearance:none;flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,.1);outline:none;cursor:pointer;}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;cursor:pointer;}
+.vol-val{font-size:11px;font-family:monospace;color:rgba(255,255,255,.4);min-width:36px;text-align:right;}
+</style>
+</head>
+<body>
+<div class="app-frame">
+
+<div class="titlebar">
+  <div class="tbar-logo">MICSTREAM</div>
+  <div class="tbar-btns">
+    <button class="tbtn" onclick="api.minimize()">─</button>
+    <button class="tbtn close" onclick="api.close()">✕</button>
+  </div>
+</div>
+
+<!-- Full screen wave -->
+<div class="vis-screen">
+  <canvas id="waveCanvas"></canvas>
+</div>
+
+<!-- Status top-left -->
+<div class="status-pill">
+  <div class="sp-dot" id="spDot"></div>
+  <div class="sp-txt" id="spTxt">Ожидание телефона...</div>
+</div>
+
+<!-- Gear -->
+<div class="gear" onclick="openSettings()">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+  </svg>
+</div>
+
+<!-- Settings -->
+<div class="overlay" id="overlay" onclick="closeSettings(event)">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="s-title">MicStream</div>
+
+    <div class="s-row"><div class="s-dot" id="phoneDot"></div><div class="s-label">Телефон</div><div class="s-val" id="phoneVal">Не подключён</div></div>
+    <div class="s-row" style="border:none"><div class="s-dot" id="stDot"></div><div class="s-label">Трансляция</div><div class="s-val" id="stVal">—</div></div>
+
+    <div class="s-time">
+      <div class="s-time-val" id="sTime">0:00</div>
+      <div class="s-time-key">ВРЕМЯ</div>
+    </div>
+
+    <!-- Output device -->
+    <div class="s-row" style="flex-direction:column;align-items:stretch;gap:0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="s-label">Устройство вывода</div>
+        <div class="s-val" id="deviceStatus"></div>
+      </div>
+      <select class="device-select" id="deviceSelect" onchange="changeDevice(this.value)">
+        <option value="">Загрузка...</option>
+      </select>
+      <div id="vbSection" style="display:none">
+        <button class="vb-btn" onclick="api.openExternal('https://vb-audio.com/Cable/')">
+          ⚠ VB-Audio Cable не найден — скачать бесплатно
+        </button>
+      </div>
+    </div>
+
+    <!-- Volume -->
+    <div class="s-row" style="flex-direction:column;align-items:stretch;gap:0;border:none">
+      <div class="s-label" style="margin-bottom:8px;">Громкость</div>
+      <div class="vol-row">
+        <input type="range" class="slider" id="volSlider" min="0" max="300" value="100" oninput="setVol(this.value)">
+        <span class="vol-val" id="volVal">100%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var audioCtx=null, gainNode=null, analyser=null, nextPlayTime=0;
+var streaming=false, sessStart=null, timer=null;
+var ws=null, redInterval=null;
+
+window.addEventListener('load', function(){
+  initAudio();
+  initWave();
+  connectToServer();
+});
+
+function initAudio(){
+  audioCtx = new AudioContext({ sampleRate:44100 });
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = 1.0;
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  gainNode.connect(analyser);
+  analyser.connect(audioCtx.destination);
+}
+
+function connectToServer(){
+  // Try localhost first, fallback to 127.0.0.1
+  // Certificate bypass is handled in Electron main process
+  var host = 'localhost:3000';
+  ws = new WebSocket('wss://'+host+'/ws/pc');
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = function(){ console.log('Connected to server'); };
+  ws.onmessage = function(e){
+    if(typeof e.data === 'string'){
+      try{
+        var msg = JSON.parse(e.data);
+        handleMsg(msg);
+      }catch(err){}
+      return;
+    }
+    if(e.data.byteLength > 4) playPCM(e.data);
+  };
+  ws.onclose = function(){ setTimeout(connectToServer, 2000); };
+  ws.onerror = function(){};
+}
+
+function handleMsg(msg){
+  if(msg.type === 'server-info'){
+    api.updateTrayIP(msg.ip);
+  } else if(msg.type === 'phone-connected'){
+    setPhone(true);
+    fireGreenWaves();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  } else if(msg.type === 'phone-disconnected'){
+    setPhone(false);
+    setStreaming(false);
+    fireRedWaves(3000);
+  } else if(msg.type === 'streaming-start'){
+    setStreaming(true);
+    api.setTrayActive(true);
+  } else if(msg.type === 'streaming-stop'){
+    setStreaming(false);
+    api.setTrayActive(false);
+  }
+}
+
+function playPCM(buffer){
+  if(!audioCtx) return;
+  try{
+    var f32 = new Float32Array(buffer);
+    var ab = audioCtx.createBuffer(1, f32.length, 44100);
+    ab.copyToChannel(f32, 0);
+    var src = audioCtx.createBufferSource();
+    src.buffer = ab;
+    src.connect(gainNode);
+    var now = audioCtx.currentTime;
+    if(nextPlayTime < now) nextPlayTime = now + 0.05;
+    src.start(nextPlayTime);
+    nextPlayTime += ab.duration;
+  }catch(e){}
+}
+
+function setPhone(on){
+  document.getElementById('phoneDot').className = 's-dot'+(on?' on':'');
+  document.getElementById('phoneVal').textContent = on ? 'Подключён' : 'Не подключён';
+  var dot = document.getElementById('spDot');
+  var txt = document.getElementById('spTxt');
+  if(on){
+    dot.className = 's-dot green';
+    txt.textContent = 'Телефон подключён';
+    txt.className = 'sp-txt on';
+  } else {
+    dot.className = 's-dot';
+    txt.textContent = 'Ожидание телефона...';
+    txt.className = 'sp-txt';
+  }
+}
+
+function setStreaming(on){
+  streaming = on;
+  document.getElementById('stDot').className = 's-dot'+(on?' on':'');
+  document.getElementById('stVal').textContent = on ? 'Идёт' : '—';
+
+  var dot = document.getElementById('spDot');
+  var txt = document.getElementById('spTxt');
+  if(on){
+    dot.className = 's-dot on';
+    txt.textContent = 'Идёт трансляция';
+    txt.className = 'sp-txt on';
+    sessStart = Date.now();
+    if(!timer) timer = setInterval(function(){
+      var s = Math.floor((Date.now()-sessStart)/1000);
+      document.getElementById('sTime').textContent = Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+    }, 1000);
+  } else {
+    if(timer){ clearInterval(timer); timer=null; sessStart=null; }
+  }
+}
+
+// Output device
+async function loadDevices(){
+  var sel = document.getElementById('deviceSelect');
+  try{
+    var devs = await navigator.mediaDevices.enumerateDevices();
+    var outputs = devs.filter(function(d){ return d.kind==='audiooutput'; });
+    sel.innerHTML = '';
+    var hasCable = false;
+    var savedId = localStorage.getItem('micstream_output_device');
+    outputs.forEach(function(d){
+      var opt = document.createElement('option');
+      opt.value = d.deviceId;
+      var isCable = d.label.toLowerCase().includes('cable') || d.label.toLowerCase().includes('virtual');
+      if(isCable) hasCable = true;
+      opt.textContent = (isCable?'🎛 ':'🔊 ')+(d.label||'Устройство');
+      if(d.deviceId==='default') opt.textContent = '🔊 По умолчанию';
+      sel.appendChild(opt);
+    });
+    document.getElementById('vbSection').style.display = hasCable ? 'none' : 'block';
+    document.getElementById('deviceStatus').textContent = hasCable ? '✓ Cable найден' : '';
+
+    // Restore saved device
+    if(savedId && outputs.find(function(d){ return d.deviceId===savedId; })){
+      sel.value = savedId;
+      changeDevice(savedId);
+    } else if(hasCable){
+      // Auto-select Cable if found and nothing saved
+      var cableOpt = Array.from(sel.options).find(function(o){ return o.textContent.startsWith('🎛'); });
+      if(cableOpt && !savedId){
+        sel.value = cableOpt.value;
+        changeDevice(cableOpt.value);
+      }
+    }
+  }catch(e){}
+}
+
+async function changeDevice(id){
+  if(!id||!audioCtx) return;
+  try{
+    if(window._outDest) window._outDest.disconnect();
+    window._outDest = audioCtx.createMediaStreamDestination();
+    gainNode.connect(window._outDest);
+    var el = window._outEl || new Audio();
+    window._outEl = el;
+    el.srcObject = window._outDest.stream;
+    if(typeof el.setSinkId === 'function'){
+      await el.setSinkId(id);
+      el.play().catch(function(){});
+      try{ analyser.disconnect(audioCtx.destination); }catch(e){}
+      localStorage.setItem('micstream_output_device', id);
+    }
+  }catch(e){}
+}
+
+function setVol(v){
+  document.getElementById('volVal').textContent = v+'%';
+  if(gainNode) gainNode.gain.value = v/100;
+}
+
+// Canvas flash wave effect
+var flashColor = null;
+var flashStart = null;
+var flashDuration = 600;
+
+function fireFlash(color){
+  flashColor = color;
+  flashStart = performance.now();
+}
+
+function fireGreenWaves(){ fireFlash('#00ff88'); }
+function fireRedOnce(){ fireFlash('#ff3b3b'); }
+function fireRedWaves(dur){
+  fireRedOnce();
+  if(redInterval) clearInterval(redInterval);
+  redInterval = setInterval(fireRedOnce, 700);
+  setTimeout(function(){ if(redInterval){ clearInterval(redInterval); redInterval=null; } }, dur);
+}
+
+function openSettings(){
+  document.getElementById('overlay').classList.add('show');
+  loadDevices();
+}
+function closeSettings(e){
+  if(e.target===document.getElementById('overlay'))
+    document.getElementById('overlay').classList.remove('show');
+}
+
+// Full screen scrolling waveform
+function initWave(){
+  var canvas = document.getElementById('waveCanvas');
+  var ctx = canvas.getContext('2d');
+  var HIST = 600;
+  var hist = new Float32Array(HIST);
+  var pos = 0, frame = 0;
+
+  function resize(){
+    canvas.width = canvas.offsetWidth * devicePixelRatio;
+    canvas.height = canvas.offsetHeight * devicePixelRatio;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  (function loop(){
+    requestAnimationFrame(loop);
+    frame++;
+
+    // Sample every 2 frames
+    if(frame % 2 === 0){
+      var amp = 0;
+      if(analyser){
+        var buf = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteTimeDomainData(buf);
+        for(var i=0;i<buf.length;i++){
+          var v = Math.abs(buf[i]/128-1);
+          if(v>amp) amp=v;
+        }
+      }
+      hist[pos] = amp;
+      pos = (pos+1) % HIST;
+    }
+
+    var w = canvas.offsetWidth;
+    var h = canvas.offsetHeight;
+    ctx.clearRect(0,0,w,h);
+
+    // Center axis
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 0.5;
+    ctx.moveTo(0, h/2);
+    ctx.lineTo(w, h/2);
+    ctx.stroke();
+
+    // Waveform
+    var alpha = streaming ? 0.85 : 0.18;
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,'+alpha+')';
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+
+    for(var i=0;i<HIST;i++){
+      var idx = (pos+i) % HIST;
+      var x = (i/(HIST-1)) * w;
+      var v = hist[idx];
+      var y = h/2 - v*(h*0.44);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    // Mirror
+    ctx.globalAlpha = 0.15;
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,'+alpha+')';
+    for(var i=0;i<HIST;i++){
+      var idx = (pos+i) % HIST;
+      var x = (i/(HIST-1)) * w;
+      var v = hist[idx];
+      var y = h/2 + v*(h*0.44);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Horizontal flash along wave center line, spreading left and right
+    if(flashColor && flashStart){
+      var elapsed = performance.now() - flashStart;
+      var progress = elapsed / flashDuration;
+      if(progress < 1){
+        var cy = h / 2;
+        var cx = w / 2;
+        var spread = progress * (w / 2);
+        var fadeAlpha = Math.pow(1 - progress, 0.6) * 0.95;
+        var lineW = 3 - progress * 2;
+
+        ctx.save();
+        ctx.strokeStyle = flashColor;
+        ctx.shadowColor = flashColor;
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = Math.max(0.5, lineW);
+        ctx.lineCap = 'round';
+
+        // Left segment: from center going left
+        ctx.globalAlpha = fadeAlpha;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx - spread, cy);
+        ctx.stroke();
+
+        // Right segment: from center going right
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + spread, cy);
+        ctx.stroke();
+
+        ctx.restore();
+      } else {
+        flashColor = null;
+        flashStart = null;
+      }
+    }
+  })();
+}
+</script>
+</div>
+</body>
+</html>

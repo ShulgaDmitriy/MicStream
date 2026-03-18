@@ -1,0 +1,13 @@
+{
+  "name": "micstream-phone",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cap sync android",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0"
+  }
+}

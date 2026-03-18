@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MicStream</string>
+    <string name="title_activity_main">MicStream</string>
+    <string name="package_name">com.micstream.phone</string>
+    <string name="custom_url_scheme">com.micstream.phone</string>
+</resources>

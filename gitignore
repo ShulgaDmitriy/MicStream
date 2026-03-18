@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# SSL certificates (генерируются автоматически)
+server/cert.pem
+server/key.pem
+electron/src/cert.pem
+electron/src/key.pem
+
+# Logs
+*.log
+micstream.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Electron builder cache
+.cache/

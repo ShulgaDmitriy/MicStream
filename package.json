@@ -1,0 +1,65 @@
+{
+  "name": "MicStream",
+  "version": "1.0.9",
+  "description": "MicStream",
+  "main": "electron/src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "selfsigned": "^2.4.1"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.micstream.pc",
+    "productName": "MicStream",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/src/icon.ico"
+    },
+    "files": [
+      "electron/src/**/*",
+      "node_modules/**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,readme.md,changelog.md}",
+      "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!node_modules/*.d.ts",
+      "!node_modules/.bin",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server"
+      },
+      {
+        "from": "electron/ui",
+        "to": "ui"
+      },
+      {
+        "from": "node_modules/ws",
+        "to": "server/node_modules/ws"
+      },
+      {
+        "from": "node_modules/selfsigned",
+        "to": "server/node_modules/selfsigned"
+      },
+      {
+        "from": "node_modules/node-forge",
+        "to": "server/node_modules/node-forge"
+      }
+    ],
+    "asar": true
+  }
+}
