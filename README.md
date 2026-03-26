@@ -63,7 +63,6 @@ micstream/
 │           └── java/com/micstream/phone/ — Java код
 ├── package.json
 ├── start.bat              — запуск в режиме разработки
-└── build.bat              — сборка EXE (альтернатива npm run build)
 ```
 
 ---
@@ -150,9 +149,6 @@ npm run build
 
 **Микрофон не виден в Discord**
 — Установи VB-Audio Cable и выбери CABLE Input в настройках MicStream.
-
-**APK не устанавливается**
-— Включи "Установка из неизвестных источников" в настройках Android.
 
 ---
 
